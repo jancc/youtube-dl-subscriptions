@@ -4,56 +4,76 @@ import opml
 import feedparser
 import youtube_dl
 import sys
-from glob import glob
-from pprint import pprint
-
-if sys.version_info[0] < 3:
-    raise Exception('Must be using Python 3')
-
+import os
+import argparse
 from time import time, mktime, strptime
 from datetime import datetime
 
-if len(glob('last.txt')) == 0:
-    f = open('last.txt', 'w')
-    f.write(str(time()))
-    print('Initialized a last.txt file with current timestamp.')
-    f.close()
 
-else:
-    f = open('last.txt', 'r')
-    content = f.read()
-    f.close()
+def read_last(fname: str) -> float:
+    with open(fname, "r") as f:
+        return datetime.utcfromtimestamp(float(f.read()))
 
-    outline = opml.parse('subs.xml')
 
-    ptime = datetime.utcfromtimestamp(float(content))
+def write_last(fname: str):
+    with open(fname, "w") as f:
+        f.write(str(time()))
+
+
+def init_last(fname: str):
+    write_last(fname)
+    print(f'initialized "{fname}" with current timestamp')
+
+
+def download(fname_last: str, fname_opml: str):
+    outline = opml.parse(fname_opml)
+
+    ptime = read_last(fname_last)
     ftime = time()
 
     urls = []
 
-    for i in range(0,len(outline[0])):
+    for i in range(0, len(outline[0])):
         urls.append(outline[0][i].xmlUrl)
 
     videos = []
-    for i in range(0,len(urls)):
-        print('Parsing through channel '+str(i+1)+' out of '+str(len(urls)), end='\r')
+    for i in range(0, len(urls)):
         feed = feedparser.parse(urls[i])
-        for j in range(0,len(feed['items'])):
-            timef = feed['items'][j]['published_parsed']
+        for j in range(0, len(feed["items"])):
+            timef = feed["items"][j]["published_parsed"]
             dt = datetime.fromtimestamp(mktime(timef))
             if dt > ptime:
-                videos.append(feed['items'][j]['link'])
+                videos.append(feed["items"][j]["link"])
+        print(
+            f"parsing... {i + 1}/{len(urls)} ({len(videos)})", end="\r",
+        )
+    print("\ndone")
 
-    if len(videos) == 0:
-        print('Sorry, no new video found')
-    else:
-        print(str(len(videos))+' new videos found')
+    print(f"{len(videos)} new videos found")
 
-    ydl_opts = {'ignoreerrors': True}
+    ydl_opts = {"ignoreerrors": True}
 
     with youtube_dl.YoutubeDL(ydl_opts) as ydl:
         ydl.download(videos)
 
-    f = open('last.txt', 'w')
-    f.write(str(ftime))
-    f.close()
+    write_last(fname_last)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="automatically download your newest youtube videos"
+    )
+    parser.add_argument(
+        "timestamp", help="file in which to record the download timestamp"
+    )
+    parser.add_argument("subs", help="file containing the subscription_manager export")
+    args = parser.parse_args()
+
+    if os.path.exists(args.timestamp) == 0:
+        init_last(args.timestamp)
+    else:
+        download(args.timestamp, args.subs)
+
+
+if __name__ == "__main__":
+    main()
