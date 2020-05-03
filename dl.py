@@ -31,10 +31,7 @@ def download(fname_last: str, fname_opml: str):
     ptime = read_last(fname_last)
     ftime = time()
 
-    urls = []
-
-    for i in range(0, len(outline[0])):
-        urls.append(outline[0][i].xmlUrl)
+    urls = [x.xmlUrl for x in outline[0]]
 
     videos = []
     for i in range(0, len(urls)):
@@ -47,11 +44,14 @@ def download(fname_last: str, fname_opml: str):
         print(
             f"parsing... {i + 1}/{len(urls)} ({len(videos)})", end="\r",
         )
-    print("\ndone")
 
+    print("\ndone")
     print(f"{len(videos)} new videos found")
 
-    ydl_opts = {"ignoreerrors": True}
+    ydl_opts = {
+        "ignoreerrors": True,
+        "outtmpl": "%(uploader)s - %(title)s.%(ext)s",
+    }
 
     with youtube_dl.YoutubeDL(ydl_opts) as ydl:
         ydl.download(videos)
@@ -69,10 +69,10 @@ def main():
     parser.add_argument("subs", help="file containing the subscription_manager export")
     args = parser.parse_args()
 
-    if os.path.exists(args.timestamp) == 0:
+    if not os.path.exists(args.timestamp):
         init_last(args.timestamp)
-    else:
-        download(args.timestamp, args.subs)
+
+    download(args.timestamp, args.subs)
 
 
 if __name__ == "__main__":
